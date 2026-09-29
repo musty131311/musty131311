@@ -34,7 +34,8 @@ OUT = os.path.join(HERE, "SufiSupportHub_Manual_Test_Plan.pdf")
 SITE = "https://sufisupporthub.com"
 REPO = "github.com/musty131311/sufi-support-hub"
 SOURCE_COMMIT = "8f67f89"
-VERSION = "1.0"
+FIX_PR = "PR #1 (branch claude/fix-code-review-findings)"
+VERSION = "1.1"
 TODAY = datetime.date.today().strftime("%d %B %Y")
 
 FONT_DIR = "/usr/share/fonts/truetype/dejavu"
@@ -124,13 +125,14 @@ def cover(story):
                 ParagraphStyle("t2", parent=TITLE, fontSize=17, leading=22)),
               Spacer(1, 8 * mm),
               p(f"Production site: {SITE}", SUB),
-              p(f"Source repository: {REPO} (commit {SOURCE_COMMIT})", SUB),
+              p(f"Source repository: {REPO} (commit {SOURCE_COMMIT} + fixes in {FIX_PR})", SUB),
               Spacer(1, 12 * mm)]
     info = [
         ["Document version", VERSION],
         ["Generated", TODAY],
         ["Coverage", f"{len(MODULES)} modules · {total_cases()} test cases · role-access matrix · "
-                     f"{len(CODE_REVIEW_FINDINGS)} code-review findings to verify"],
+                     f"{sum(1 for f in CODE_REVIEW_FINDINGS if f[2].startswith('Fixed'))} code-review findings fixed, "
+                     f"{sum(1 for f in CODE_REVIEW_FINDINGS if not f[2].startswith('Fixed'))} open"],
         ["Test type", "Manual — functional, role/jurisdiction, security, performance, compatibility, accessibility"],
         ["Environment under test", "Production (sufisupporthub.com) and/or staging"],
         ["Prepared by", "________________________________"],
@@ -143,7 +145,7 @@ def cover(story):
     story += bullets([
         "1. Introduction &amp; scope", "2. Test approach, roles, environments, data, criteria",
         "3. Feature map (every feature found in the source code)",
-        "4. Code-review findings to verify on the live site",
+        "4. Code-review findings and fix status",
         "5. Role &amp; jurisdiction access matrix",
         "6. Detailed test cases (per module)", "7. Release smoke-test checklist",
         "8. Execution summary", "9. Defect log", "10. Test-cycle sign-off",
@@ -243,6 +245,8 @@ def intro(story):
         f"Tick {BOX} Pass, {BOX} Fail or {BOX} N/A. Never leave a row blank.",
         "On failure, log it in Section 9 and write the Defect ID in the Notes column. Attach a screenshot or screen recording.",
         "Rows marked NOTE describe behaviour seen in the code that may be unintended. Confirm with the product owner.",
+        f"Cases marked [Fixed in PR #1] check a fix from {FIX_PR}. They only pass once that PR is merged and deployed; "
+        "before then, expect the old behaviour.",
     ])
     story.append(PageBreak())
 
@@ -260,16 +264,22 @@ def feature_map(story):
 
 
 def findings(story):
-    story.append(p("4. Code-Review Findings to Verify", H1))
-    story.append(p("These came up while reading the source code for this plan. Each one also appears as a "
-                   "test case marked NOTE. Confirm on the live site, then record the decision."))
-    rows = [hdr(["#", "Module", "Finding", "Confirmed?", "Decision / Defect ID"])]
-    for i, (mod, text) in enumerate(CODE_REVIEW_FINDINGS, 1):
-        rows.append([p(str(i), SMALL), p(mod, SMALL), p(escape(text), SMALL),
-                     p(f"{BOX} Yes<br/>{BOX} No", SMALL), p("", SMALL)])
-    t = grid(rows, [8 * mm, 14 * mm, 104 * mm, 24 * mm, 32 * mm], zebra=False)
-    t.setStyle(TableStyle([("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, AMBER])]))
+    story.append(p("4. Code-Review Findings and Fix Status", H1))
+    story.append(p(f"Issues found while reading the source code for this plan. Those marked fixed were "
+                   f"corrected in {FIX_PR}. Once it is merged and deployed, run the listed retest cases and "
+                   "tick \u201cVerified\u201d. Open items need a decision from the project owner."))
+    rows = [hdr(["#", "Module", "Finding", "Status", "Retest case / decision needed", "Verified"])]
+    open_rows = []
+    for i, (mod, text, status, retest) in enumerate(CODE_REVIEW_FINDINGS, 1):
+        rows.append([p(str(i), SMALL), p(mod, SMALL), p(escape(text), SMALL), p(f"<b>{escape(status)}</b>", SMALL),
+                     p(escape(retest), SMALL), p(f"{BOX} Yes<br/>{BOX} No", SMALL)])
+        if not status.startswith("Fixed"):
+            open_rows.append(i)
+    t = grid(rows, [8 * mm, 14 * mm, 76 * mm, 24 * mm, 42 * mm, 18 * mm], zebra=False)
+    t.setStyle(TableStyle([("BACKGROUND", (0, r), (-1, r), AMBER) for r in open_rows]))
     story.append(t)
+    story.append(Spacer(1, 3))
+    story.append(p("Shaded rows are still open.", SMALL))
     story.append(PageBreak())
 
 
